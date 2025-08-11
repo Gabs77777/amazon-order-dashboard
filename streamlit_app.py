@@ -10,21 +10,16 @@ if uploaded_file:
     df = pd.read_excel(uploaded_file)
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "-")
 
-    # Normalize quantity
+    # Quantity handling
     if 'quantity' in df.columns:
         df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0).astype(int)
     else:
         df['quantity'] = 0
 
-    # Detect Vine orders
+    # Vine detection
     df['vine'] = df.get('promotion-ids', '').astype(str).str.contains('vine', case=False, na=False)
 
-    # Normalize 'status' and 'order-status'
-    if 'status' in df.columns:
-        df['status'] = df['status'].astype(str).str.lower()
-    else:
-        df['status'] = ''
-
+    # Normalize order-status
     if 'order-status' in df.columns:
         df['order-status'] = df['order-status'].astype(str).str.lower()
     else:
@@ -35,12 +30,12 @@ if uploaded_file:
     vine_orders = df['vine'].sum()
     retail_orders = total_orders - vine_orders
 
-    shipped_units = df[df['status'] == 'shipped']['quantity'].sum()
-    pending_units = df[df['status'] == 'unshipped']['quantity'].sum()
+    shipped_units = df[df['order-status'] == 'shipped']['quantity'].sum()
+    pending_units = df[df['order-status'] == 'pending']['quantity'].sum()
     pending_orders = len(df[df['order-status'] == 'pending'])
 
-    shipped_vine_units = df[(df['status'] == 'shipped') & (df['vine'])]['quantity'].sum()
-    shipped_retail_units = df[(df['status'] == 'shipped') & (~df['vine'])]['quantity'].sum()
+    shipped_vine_units = df[(df['order-status'] == 'shipped') & (df['vine'])]['quantity'].sum()
+    shipped_retail_units = df[(df['order-status'] == 'shipped') & (~df['vine'])]['quantity'].sum()
 
     fba_vine_units_sent = df[df['vine']]['quantity'].sum()
 
@@ -60,9 +55,9 @@ if uploaded_file:
     with col4:
         st.metric("Pending Orders", pending_orders)
 
-    # Choose specific columns to display
+    # Display only relevant columns
     display_columns = [
-        'amazon-order-id', 'purchase-date', 'order-status', 'status',
+        'amazon-order-id', 'purchase-date', 'order-status',
         'quantity', 'promotion-ids', 'vine'
     ]
     filtered_columns = [col for col in display_columns if col in df.columns]
