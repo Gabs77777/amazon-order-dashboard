@@ -9,23 +9,28 @@ uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Normalize all column names
+    # Normalize column names
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "-")
 
-    # Fill missing expected columns with defaults
-    for col in ['order-status', 'status', 'quantity', 'vine']:
-        if col not in df.columns:
-            if col == 'quantity':
-                df[col] = 0
-            elif col == 'vine':
-                df[col] = False
-            else:
-                df[col] = ''
+    # Make sure quantity column is numeric
+    if 'quantity' in df.columns:
+        df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0).astype(int)
+    else:
+        df['quantity'] = 0
 
-    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0).astype(int)
-    df['vine'] = df['vine'].fillna(False)
+    # Identify vine orders by checking if "vine" is in the promotion column
+    if 'promotion' in df.columns:
+        df['vine'] = df['promotion'].astype(str).str.contains("vine", case=False, na=False)
+    else:
+        df['vine'] = False
 
-    # Core metrics
+    # Normalize status/order-status
+    if 'status' not in df.columns:
+        df['status'] = ''
+    if 'order-status' not in df.columns:
+        df['order-status'] = ''
+
+    # Metrics
     total_orders = len(df)
     vine_orders = df['vine'].sum()
     retail_orders = total_orders - vine_orders
@@ -39,7 +44,7 @@ if uploaded_file:
 
     fba_vine_units_sent = df[df['vine']]['quantity'].sum()
 
-    # Display metrics
+    # Display
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Total Orders", total_orders)
@@ -55,6 +60,5 @@ if uploaded_file:
     with col4:
         st.metric("Pending Orders", pending_orders)
 
-    # Display order table
     st.markdown("### Full Order Data")
     st.dataframe(df)
