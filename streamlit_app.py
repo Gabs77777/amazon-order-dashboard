@@ -9,22 +9,23 @@ uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Normalize columns
+    # Normalize column names
     df.columns = df.columns.str.lower().str.strip()
 
-    # Check required columns
+    # Required columns
     required = ['order-status', 'quantity', 'promotion-ids', 'amazon-order-id']
     if not all(col in df.columns for col in required):
         st.error("Missing required columns.")
         st.stop()
 
-    # Clean and normalize
+    # Clean up data
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(1).astype(int)
     df['order-status'] = df['order-status'].astype(str).str.lower()
     df['promotion-ids'] = df['promotion-ids'].astype(str)
 
-    # ROW-LEVEL vine identification
-    df['vine'] = df['promotion-ids'].str.contains('vine.enrollment', case=False, na=False)
+    # Fix: flag vine orders based on any matching row in the same order
+    vine_orders = df[df['promotion-ids'].str.contains('vine.enrollment', case=False, na=False)]['amazon-order-id'].unique()
+    df['vine'] = df['amazon-order-id'].isin(vine_orders)
 
     # Manual override
     st.sidebar.header("Manual Overrides")
@@ -32,10 +33,10 @@ if uploaded_file:
     vine_units_enrolled = st.sidebar.number_input("Vine Units Enrolled", value=14)
 
     # Orders
-    total_orders = df['amazon-order-id'].nunique()
-    vine_orders = df[df['vine']]['amazon-order-id'].nunique()
-    retail_orders = total_orders - vine_orders
-    pending_orders = df[df['order-status'] == 'pending']['amazon-order-id'].nunique()
+    total_orders = len(df)
+    vine_orders_count = df['vine'].sum()
+    retail_orders = total_orders - vine_orders_count
+    pending_orders = len(df[df['order-status'] == 'pending'])
 
     # Units
     vine_units = df[df['vine']]['quantity'].sum()
@@ -51,7 +52,7 @@ if uploaded_file:
     o1, o2, o3, o4 = st.columns(4)
     o1.metric("Total Orders", total_orders)
     o2.metric("Retail Orders", retail_orders)
-    o3.metric("Vine Orders", vine_orders)
+    o3.metric("Vine Orders", vine_orders_count)
     o4.metric("Pending Orders", pending_orders)
 
     st.markdown("### Units")
