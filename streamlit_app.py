@@ -13,17 +13,17 @@ if uploaded_file:
     df.columns = df.columns.str.lower().str.strip()
 
     # Validate required columns
-    required_cols = ['order-status', 'quantity', 'promotion-ids']
-    for col in required_cols:
+    required = ['order-status', 'quantity', 'promotion-ids']
+    for col in required:
         if col not in df.columns:
             st.error(f"Missing required column: {col}")
             st.stop()
 
-    # Infer vine orders
+    # Infer vine flag
     if 'vine' not in df.columns:
         df['vine'] = df['promotion-ids'].astype(str).str.contains('vine', case=False, na=False)
 
-    # Clean quantity column
+    # Ensure numeric quantity
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(1).astype(int)
     df['order-status'] = df['order-status'].astype(str).str.lower()
 
@@ -34,13 +34,13 @@ if uploaded_file:
     pending_orders = len(df[df['order-status'] == 'pending'])
 
     # Units
-    fba_vine_units_sent = df[df['vine']]['quantity'].sum()
+    vine_units_sent = df[df['vine']]['quantity'].sum()
     shipped_units = df[df['order-status'] == 'shipped']['quantity'].sum()
     shipped_vine_units = df[(df['vine']) & (df['order-status'] == 'shipped')]['quantity'].sum()
     shipped_retail_units = df[(~df['vine']) & (df['order-status'] == 'shipped')]['quantity'].sum()
     pending_units = df[df['order-status'] == 'pending']['quantity'].sum()
 
-    # Display metrics
+    # Display
     st.subheader("Orders")
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Orders", total_orders)
@@ -49,7 +49,7 @@ if uploaded_file:
 
     st.subheader("Units")
     col4, col5, col6 = st.columns(3)
-    col4.metric("FBA Vine Units Sent", fba_vine_units_sent)
+    col4.metric("FBA Vine Units Sent", vine_units_sent)
     col5.metric("Shipped Units", shipped_units)
     col6.metric("Pending Units", pending_units)
 
@@ -58,14 +58,7 @@ if uploaded_file:
     col8.metric("Shipped Retail Units", shipped_retail_units)
     col9.metric("Pending Orders", pending_orders)
 
-    # Show only relevant columns
-    display_columns = [
-        'amazon-order-id',
-        'purchase-date',
-        'order-status',
-        'quantity',
-        'promotion-ids',
-        'vine'
-    ]
+    # Table
+    display_cols = ['amazon-order-id', 'purchase-date', 'order-status', 'quantity', 'promotion-ids', 'vine']
     st.subheader("Full Order Data")
-    st.dataframe(df[display_columns], use_container_width=True)
+    st.dataframe(df[display_cols], use_container_width=True)
