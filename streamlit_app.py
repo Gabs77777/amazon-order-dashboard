@@ -9,16 +9,15 @@ uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Rename columns for consistency
+    # Normalize column names
     df.columns = df.columns.str.strip().str.lower().str.replace(' ', '-')
 
-    # Ensure expected column names are present
-    required_columns = ['amazon-order-id', 'purchase-date', 'order-status', 'ship-service-level', 'status',
-                        'quantity', 'price', 'discount', 'city', 'state', 'promotion', 'vine']
-    df = df[[col for col in required_columns if col in df.columns]]
+    # Handle missing 'vine' column
+    if 'vine' not in df.columns:
+        df['vine'] = False
 
-    # Clean up and convert data types
-    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0).astype(int)
+    # Convert data types
+    df['quantity'] = pd.to_numeric(df.get('quantity', 0), errors='coerce').fillna(0).astype(int)
     df['vine'] = df['vine'].fillna(False)
 
     # Basic counts
@@ -52,7 +51,10 @@ if uploaded_file:
     with col4:
         st.metric("Pending Orders", pending_orders)
 
-    # Show filtered table
-    st.markdown("### Full Order Data")
-    st.dataframe(df)
+    # Filter only required columns for display
+    display_columns = ['amazon-order-id', 'purchase-date', 'order-status', 'ship-service-level',
+                       'status', 'quantity', 'price', 'discount', 'city', 'state', 'promotion', 'vine']
+    display_columns = [col for col in display_columns if col in df.columns]
 
+    st.markdown("### Full Order Data")
+    st.dataframe(df[display_columns])
