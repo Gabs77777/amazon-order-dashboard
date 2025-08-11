@@ -12,7 +12,7 @@ if uploaded_file:
     df = pd.read_excel(uploaded_file)
     st.write("Data Preview:", df.head())
 
-df['order-id'] = df['amazon-order-id'].astype(str)
+    df['order-id'] = df['amazon-order-id'].astype(str)
     df['item-status'] = df['item-status'].fillna('')
     df['order-type'] = df['order-type'].fillna('')
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
