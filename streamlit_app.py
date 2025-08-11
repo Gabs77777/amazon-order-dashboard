@@ -9,31 +9,35 @@ uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Normalize column names
-    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '-')
+    # Normalize all column names
+    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "-")
 
-    # Handle missing 'vine' column
-    if 'vine' not in df.columns:
-        df['vine'] = False
+    # Fill missing expected columns with defaults
+    for col in ['order-status', 'status', 'quantity', 'vine']:
+        if col not in df.columns:
+            if col == 'quantity':
+                df[col] = 0
+            elif col == 'vine':
+                df[col] = False
+            else:
+                df[col] = ''
 
-    # Convert data types
-    df['quantity'] = pd.to_numeric(df.get('quantity', 0), errors='coerce').fillna(0).astype(int)
+    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0).astype(int)
     df['vine'] = df['vine'].fillna(False)
 
-    # Basic counts
+    # Core metrics
     total_orders = len(df)
     vine_orders = df['vine'].sum()
     retail_orders = total_orders - vine_orders
 
     shipped_units = df[df['status'].str.lower() == 'shipped']['quantity'].sum()
     pending_units = df[df['status'].str.lower() == 'unshipped']['quantity'].sum()
-
     pending_orders = len(df[df['order-status'].str.lower() == 'pending'])
 
-    shipped_vine_units = df[(df['status'].str.lower() == 'shipped') & (df['vine'] == True)]['quantity'].sum()
-    shipped_retail_units = df[(df['status'].str.lower() == 'shipped') & (df['vine'] == False)]['quantity'].sum()
+    shipped_vine_units = df[(df['status'].str.lower() == 'shipped') & (df['vine'])]['quantity'].sum()
+    shipped_retail_units = df[(df['status'].str.lower() == 'shipped') & (~df['vine'])]['quantity'].sum()
 
-    fba_vine_units_sent = df[df['vine'] == True]['quantity'].sum()
+    fba_vine_units_sent = df[df['vine']]['quantity'].sum()
 
     # Display metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -51,10 +55,6 @@ if uploaded_file:
     with col4:
         st.metric("Pending Orders", pending_orders)
 
-    # Filter only required columns for display
-    display_columns = ['amazon-order-id', 'purchase-date', 'order-status', 'ship-service-level',
-                       'status', 'quantity', 'price', 'discount', 'city', 'state', 'promotion', 'vine']
-    display_columns = [col for col in display_columns if col in df.columns]
-
+    # Display order table
     st.markdown("### Full Order Data")
-    st.dataframe(df[display_columns])
+    st.dataframe(df)
