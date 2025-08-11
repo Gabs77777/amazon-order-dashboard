@@ -9,24 +9,24 @@ uploaded_file = st.file_uploader("Upload Amazon .xlsx file", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Ensure necessary fields exist
-    df['order-status'] = df.get('order-status', '').fillna('')
-    df['quantity'] = pd.to_numeric(df.get('quantity', 0), errors='coerce').fillna(0)
-    df['promotion-ids'] = df.get('promotion-ids', '').fillna('')
-    df['amazon-order-id'] = df.get('amazon-order-id', '').astype(str)
+    # Clean and prepare
+    df['promotion-ids'] = df['promotion-ids'].astype(str).fillna('')
+    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0).astype(int)
+    df['order-status'] = df['order-status'].astype(str).fillna('')
+    df['amazon-order-id'] = df['amazon-order-id'].astype(str).fillna('')
 
-    # Define Vine logic by row
-    vine_key = 'vine.enrollment.ada9f609-d98f-4e51-845f-f586ae70b3bd'
-    df['is_vine'] = df['promotion-ids'].astype(str).str.contains(vine_key)
+    # Define Vine logic
+    vine_id = 'vine.enrollment.ada9f609-d98f-4e51-845f-f586ae70b3bd'
+    df['is_vine'] = df['promotion-ids'].str.contains(vine_id)
     df['is_retail'] = ~df['is_vine']
 
-    # Total rows vs unique orders
+    # Unique orders
     total_rows = len(df)
     total_orders = df['amazon-order-id'].nunique()
     vine_orders = df[df['is_vine']]['amazon-order-id'].nunique()
     retail_orders = df[df['is_retail']]['amazon-order-id'].nunique()
 
-    # Unit-level calculations
+    # Units
     total_units = int(df['quantity'].sum())
     shipped_units = int(df[df['order-status'] == 'Shipped']['quantity'].sum())
     pending_units = int(df[df['order-status'] == 'Pending']['quantity'].sum())
@@ -36,7 +36,7 @@ if uploaded_file:
 
     pending_orders = df[df['order-status'] == 'Pending']['amazon-order-id'].nunique()
 
-    # UI Layout
+    # Layout
     st.markdown("### Order Summary")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Rows", total_rows)
@@ -57,4 +57,4 @@ if uploaded_file:
     col10.metric("Pending Orders", pending_orders)
 
     st.markdown("### Data Preview")
-    st.dataframe(df)
+    st.dataframe(df, use_container_width=True)
