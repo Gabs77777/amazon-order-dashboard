@@ -12,37 +12,41 @@ if uploaded_file:
     # Normalize column names
     df.columns = df.columns.str.lower().str.strip()
 
-    # Required columns
-    required = ['order-status', 'quantity', 'promotion-ids', 'amazon-order-id']
+    required = ['amazon-order-id', 'order-status', 'quantity', 'promotion-ids']
     if not all(col in df.columns for col in required):
         st.error("Missing required columns.")
         st.stop()
 
-    # Clean up data
+    # Clean up
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(1).astype(int)
     df['order-status'] = df['order-status'].astype(str).str.lower()
     df['promotion-ids'] = df['promotion-ids'].astype(str)
 
-    # Fix: flag vine orders based on any matching row in the same order
-    vine_orders = df[df['promotion-ids'].str.contains('vine.enrollment', case=False, na=False)]['amazon-order-id'].unique()
-    df['vine'] = df['amazon-order-id'].isin(vine_orders)
+    # Classify vine orders based on any row in the order
+    vine_order_ids = df[df['promotion-ids'].str.contains('vine.enrollment', case=False, na=False)]['amazon-order-id'].unique()
+    df['vine'] = df['amazon-order-id'].isin(vine_order_ids)
 
     # Manual override
     st.sidebar.header("Manual Overrides")
     vine_units_sent = st.sidebar.number_input("FBA Vine Units Sent", value=15)
     vine_units_enrolled = st.sidebar.number_input("Vine Units Enrolled", value=14)
 
+    # Group by order ID
+    grouped_orders = df.groupby('amazon-order-id').agg({
+        'order-status': 'first',
+        'vine': 'max'
+    }).reset_index()
+
     # Orders
-    total_orders = len(df)
-    vine_orders_count = df['vine'].sum()
-    retail_orders = total_orders - vine_orders_count
-    pending_orders = len(df[df['order-status'] == 'pending'])
+    total_orders = grouped_orders.shape[0]
+    vine_orders = grouped_orders['vine'].sum()
+    retail_orders = total_orders - vine_orders
+    pending_orders = (grouped_orders['order-status'] == 'pending').sum()
 
     # Units
     vine_units = df[df['vine']]['quantity'].sum()
     retail_units = df[~df['vine']]['quantity'].sum()
-    total_units = vine_units + retail_units
-
+    total_units = df['quantity'].sum()
     pending_units = df[df['order-status'] == 'pending']['quantity'].sum()
     shipped_vine_units = df[(df['vine']) & (df['order-status'] == 'shipped')]['quantity'].sum()
     shipped_retail_units = df[(~df['vine']) & (df['order-status'] == 'shipped')]['quantity'].sum()
@@ -52,7 +56,7 @@ if uploaded_file:
     o1, o2, o3, o4 = st.columns(4)
     o1.metric("Total Orders", total_orders)
     o2.metric("Retail Orders", retail_orders)
-    o3.metric("Vine Orders", vine_orders_count)
+    o3.metric("Vine Orders", vine_orders)
     o4.metric("Pending Orders", pending_orders)
 
     st.markdown("### Units")
