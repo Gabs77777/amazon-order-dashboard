@@ -12,43 +12,41 @@ if uploaded_file:
     # Normalize column names
     df.columns = df.columns.str.lower().str.strip()
 
-    # Ensure required columns exist
+    # Validate required columns
     required_cols = ['order-status', 'quantity', 'promotion-ids']
     for col in required_cols:
         if col not in df.columns:
             st.error(f"Missing required column: {col}")
             st.stop()
 
-    # Add vine flag (checkbox column exists or infer from promotion-ids)
+    # Infer vine orders
     if 'vine' not in df.columns:
         df['vine'] = df['promotion-ids'].astype(str).str.contains('vine', case=False, na=False)
 
-    # Ensure quantity is numeric
+    # Clean quantity column
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(1).astype(int)
+    df['order-status'] = df['order-status'].astype(str).str.lower()
 
-    # Total orders
+    # Orders
     total_orders = len(df)
     vine_orders = df['vine'].sum()
     retail_orders = total_orders - vine_orders
+    pending_orders = len(df[df['order-status'] == 'pending'])
 
-    # Total units
+    # Units
     fba_vine_units_sent = df[df['vine']]['quantity'].sum()
-    shipped_units = df[df['order-status'].str.lower() == 'shipped']['quantity'].sum()
-    pending_units = df[df['order-status'].str.lower() == 'pending']['quantity'].sum()
+    shipped_units = df[df['order-status'] == 'shipped']['quantity'].sum()
+    shipped_vine_units = df[(df['vine']) & (df['order-status'] == 'shipped')]['quantity'].sum()
+    shipped_retail_units = df[(~df['vine']) & (df['order-status'] == 'shipped')]['quantity'].sum()
+    pending_units = df[df['order-status'] == 'pending']['quantity'].sum()
 
-    shipped_vine_units = df[(df['vine']) & (df['order-status'].str.lower() == 'shipped')]['quantity'].sum()
-    shipped_retail_units = df[(~df['vine']) & (df['order-status'].str.lower() == 'shipped')]['quantity'].sum()
-
-    pending_orders = len(df[df['order-status'].str.lower() == 'pending'])
-
-    # Orders summary
+    # Display metrics
     st.subheader("Orders")
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Orders", total_orders)
     col2.metric("Retail Orders", retail_orders)
     col3.metric("Vine Orders", vine_orders)
 
-    # Units summary
     st.subheader("Units")
     col4, col5, col6 = st.columns(3)
     col4.metric("FBA Vine Units Sent", fba_vine_units_sent)
@@ -60,8 +58,7 @@ if uploaded_file:
     col8.metric("Shipped Retail Units", shipped_retail_units)
     col9.metric("Pending Orders", pending_orders)
 
-    # Display selected table columns
-    st.subheader("Full Order Data")
+    # Show only relevant columns
     display_columns = [
         'amazon-order-id',
         'purchase-date',
@@ -70,5 +67,5 @@ if uploaded_file:
         'promotion-ids',
         'vine'
     ]
-    display_columns = [col for col in display_columns if col in df.columns]
+    st.subheader("Full Order Data")
     st.dataframe(df[display_columns], use_container_width=True)
