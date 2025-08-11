@@ -12,18 +12,19 @@ if uploaded_file:
     # Normalize column names
     df.columns = df.columns.str.lower().str.strip()
 
-    # Check required columns
+    # Required columns
     required = ['order-status', 'quantity', 'promotion-ids']
     if not all(col in df.columns for col in required):
-        st.error("Missing required columns. Needs 'order-status', 'quantity', and 'promotion-ids'.")
+        st.error("Missing required columns.")
         st.stop()
 
-    # Clean data
+    # Clean up data
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(1).astype(int)
     df['order-status'] = df['order-status'].astype(str).str.lower()
-    df['vine'] = df['promotion-ids'].astype(str).str.contains('vine.enrollment', case=False, na=False)
+    df['promotion-ids'] = df['promotion-ids'].astype(str)
+    df['vine'] = df['promotion-ids'].str.contains('vine.enrollment', case=False, na=False)
 
-    # Manual override inputs
+    # Manual override
     st.sidebar.header("Manual Overrides")
     vine_units_sent = st.sidebar.number_input("FBA Vine Units Sent", value=15)
     vine_units_enrolled = st.sidebar.number_input("Vine Units Enrolled", value=14)
@@ -38,11 +39,12 @@ if uploaded_file:
     vine_units = df[df['vine']]['quantity'].sum()
     retail_units = df[~df['vine']]['quantity'].sum()
     total_units = vine_units + retail_units
+
     pending_units = df[df['order-status'] == 'pending']['quantity'].sum()
     shipped_vine_units = df[(df['vine']) & (df['order-status'] == 'shipped')]['quantity'].sum()
     shipped_retail_units = df[(~df['vine']) & (df['order-status'] == 'shipped')]['quantity'].sum()
 
-    # Section: Orders
+    # Layout
     st.markdown("### Orders")
     o1, o2, o3, o4 = st.columns(4)
     o1.metric("Total Orders", total_orders)
@@ -50,7 +52,6 @@ if uploaded_file:
     o3.metric("Vine Orders", vine_orders)
     o4.metric("Pending Orders", pending_orders)
 
-    # Section: Units
     st.markdown("### Units")
     u1, u2, u3, u4 = st.columns(4)
     u1.metric("FBA Vine Units Sent", vine_units_sent)
@@ -64,6 +65,5 @@ if uploaded_file:
     u7.metric("Shipped Vine Units", shipped_vine_units)
     u8.metric("Shipped Retail Units", shipped_retail_units)
 
-    # Full table
     st.markdown("### Full Order Data")
     st.dataframe(df[['amazon-order-id', 'purchase-date', 'order-status', 'quantity', 'promotion-ids', 'vine']], use_container_width=True)
