@@ -13,15 +13,15 @@ uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Normalize column names
+    # Normalize columns
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "-")
 
-    # Fill quantity column with 1 if missing
+    # Ensure 'quantity' exists
     if "quantity" not in df.columns:
         df["quantity"] = 1
     df["quantity"] = df["quantity"].fillna(1).astype(int)
 
-    # Detect Vine orders robustly
+    # Identify vine orders
     def is_vine(x):
         if pd.isna(x):
             return False
@@ -29,11 +29,11 @@ if uploaded_file:
 
     df["vine_order"] = df["promotion-ids"].apply(is_vine)
 
-    # Split orders
-    vine_df = df[df["vine_order"]]
-    retail_df = df[~df["vine_order"]]
+    # Apply correct splits
+    vine_df = df[df["vine_order"] == True]
+    retail_df = df[df["vine_order"] == False]
 
-    # Order counts
+    # Orders
     total_orders = len(df)
     retail_orders = len(retail_df)
     vine_orders = len(vine_df)
@@ -47,7 +47,7 @@ if uploaded_file:
     shipped_retail_units = int(retail_df[retail_df["order-status"].str.lower() == "shipped"]["quantity"].sum())
     pending_units = int(df[df["order-status"].str.lower() == "pending"]["quantity"].sum())
 
-    # Display
+    # Dashboard
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Orders", total_orders)
     col2.metric("Retail Orders", retail_orders)
