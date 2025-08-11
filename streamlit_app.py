@@ -30,43 +30,42 @@ if uploaded_file:
 
         df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(1).astype(int)
 
-        # Ensure unique orders
-        unique_orders = df.drop_duplicates(subset=["order_id"])
+        # Unique orders
+        unique_orders = df.drop_duplicates(subset="order_id")
 
-        # Metrics
         total_orders = len(unique_orders)
         vine_orders = unique_orders["is_vine"].sum()
         retail_orders = total_orders - vine_orders
-
-        vine_units_ordered = df[df["is_vine"]]["quantity"].sum()
-        retail_units_ordered = df[~df["is_vine"]]["quantity"].sum()
-
         pending_orders = unique_orders[unique_orders["status"] == "pending"].shape[0]
 
+        # Retail units based on unique retail order_ids
+        unique_retail_order_ids = unique_orders[~unique_orders["is_vine"]]["order_id"].unique()
+        retail_units_ordered = df[df["order_id"].isin(unique_retail_order_ids) & (~df["is_vine"])]["quantity"].sum()
+
+        vine_units_ordered = df[df["is_vine"]]["quantity"].sum()
         shipped_vine_units = df[(df["is_vine"]) & (df["status"] == "shipped")]["quantity"].sum()
         shipped_retail_units = df[(~df["is_vine"]) & (df["status"] == "shipped")]["quantity"].sum()
-
         pending_units = df[df["status"] == "pending"]["quantity"].sum()
 
-        # Row 1
-        row1 = st.columns(4)
-        row1[0].metric("Total Orders", total_orders)
-        row1[1].metric("Retail Orders", retail_orders)
-        row1[2].metric("Vine Orders", vine_orders)
-        row1[3].metric("Pending Orders", pending_orders)
+        # Row 1: Orders
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Orders", total_orders)
+        col2.metric("Retail Orders", retail_orders)
+        col3.metric("Vine Orders", vine_orders)
+        col4.metric("Pending Orders", pending_orders)
 
-        # Row 2
-        row2 = st.columns(4)
-        row2[0].metric("FBA Vine Units Sent", vine_units_sent)
-        row2[1].metric("Vine Units Enrolled", vine_units_enrolled)
-        row2[2].metric("Vine Units Ordered", int(vine_units_ordered))
-        row2[3].metric("Retail Units Ordered", int(retail_units_ordered))
+        # Row 2: FBA/Vine
+        col5, col6, col7, col8 = st.columns(4)
+        col5.metric("FBA Vine Units Sent", vine_units_sent)
+        col6.metric("Vine Units Enrolled", vine_units_enrolled)
+        col7.metric("Vine Units Ordered", int(vine_units_ordered))
+        col8.metric("Retail Units Ordered", int(retail_units_ordered))
 
-        # Row 3
-        row3 = st.columns(3)
-        row3[0].metric("Shipped Vine Units", int(shipped_vine_units))
-        row3[1].metric("Shipped Retail Units", int(shipped_retail_units))
-        row3[2].metric("Pending Units", int(pending_units))
+        # Row 3: Shipping/Pending
+        col9, col10, col11 = st.columns(3)
+        col9.metric("Shipped Vine Units", int(shipped_vine_units))
+        col10.metric("Shipped Retail Units", int(shipped_retail_units))
+        col11.metric("Pending Units", int(pending_units))
 
         st.markdown("### Full Order Data")
         st.dataframe(df)
