@@ -28,14 +28,8 @@ if uploaded_file:
     df['status'] = df['status'].astype(str).str.lower()
     df['promotion_ids'] = df['promotion_ids'].astype(str)
 
-    # Use hardcoded Vine order IDs
-    VINE_ORDER_IDS = [
-        # Add or update these order IDs
-        '112-1111111-1111111',
-        '112-2222222-2222222',
-        '112-3333333-3333333'
-    ]
-    df['vine'] = df['order_id'].isin(VINE_ORDER_IDS)
+    # Detect Vine orders automatically
+    df['vine'] = df['promotion_ids'].str.contains('vine', case=False, na=False)
 
     # Manual sidebar inputs
     st.sidebar.header("Manual Inputs")
