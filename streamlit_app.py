@@ -16,23 +16,25 @@ if uploaded_file:
     # Detect vine orders
     df["is_vine"] = df["promotion-ids"].astype(str).str.contains("vine", case=False)
 
-    # Clean item-status to lower for comparison
+    # Normalize and clean
     df["item-status"] = df["item-status"].str.strip().str.lower()
+    df["order-status"] = df["order-status"].str.strip().str.capitalize()
+    df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(0).astype(int)
 
-    # Metrics
+    # Core metrics
     total_orders = len(df)
     vine_orders = df["is_vine"].sum()
     retail_orders = total_orders - vine_orders
-
-    df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(0).astype(int)
-
     fba_vine_units_sent = df[df["is_vine"]]["quantity"].sum()
-    shipped_units = df[df["item-status"] == "shipped"]["quantity"].sum()
-    shipped_vine_units = df[(df["item-status"] == "shipped") & (df["is_vine"])]["quantity"].sum()
+
+    shipped_df = df[df["item-status"] == "shipped"]
+    shipped_units = shipped_df["quantity"].sum()
+    shipped_vine_units = shipped_df[shipped_df["is_vine"]]["quantity"].sum()
     shipped_retail_units = shipped_units - shipped_vine_units
 
-    pending_orders = len(df[df["item-status"] != "shipped"])
-    pending_units = df[df["item-status"] != "shipped"]["quantity"].sum()
+    pending_df = df[df["order-status"] == "Pending"]
+    pending_orders = len(pending_df)
+    pending_units = pending_df["quantity"].sum()
 
     # Display metrics
     col1, col2, col3 = st.columns(3)
@@ -49,7 +51,7 @@ if uploaded_file:
         st.metric("Shipped Retail Units", shipped_retail_units)
         st.metric("Pending Orders", pending_orders)
 
-    # Clean table columns
+    # Clean table
     show_columns = [
         "amazon-order-id", "purchase-date", "order-status", "ship-service-level",
         "item-status", "quantity", "item-price", "item-promotion-discount",
