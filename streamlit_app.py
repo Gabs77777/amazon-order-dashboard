@@ -1,51 +1,62 @@
-# Clean layout, manual override, compact display
-st.markdown("<h1 style='color:white; font-size:36px;'>Amazon Order Dashboard</h1>", unsafe_allow_html=True)
-uploaded_file = st.file_uploader("Upload Amazon .xlsx file", type=["xlsx"])
+import streamlit as st
+import pandas as pd
+
+st.set_page_config(page_title="Amazon Order Dashboard", layout="wide")
+
+st.markdown(
+    "<h1 style='color:white; font-size:36px;'>Amazon Order Dashboard</h1>",
+    unsafe_allow_html=True
+)
+
+uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    vine_id = 'vine.enrollment.ada9f609-d98f-4e51-845f-f586ae70b3bd'
-    df['promotion-ids'] = df['promotion-ids'].astype(str)
-    df['order-status'] = df['order-status'].fillna('').astype(str)
-    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0).astype(int)
-    df['amazon-order-id'] = df['amazon-order-id'].astype(str)
+    # Sanitize column names
+    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '-')
 
-    df['is_vine'] = df['promotion-ids'].str.contains(vine_id)
-    df['is_retail'] = ~df['is_vine']
-    df['is_shipped'] = df['order-status'] == 'Shipped'
-    df['is_pending'] = df['order-status'] == 'Pending'
+    # Drop rows with missing required fields
+    df = df.dropna(subset=['order-status', 'fulfillment-channel'])
 
+    # Classify Vine vs Retail based on 'sales-channel'
+    df['order-type'] = df['sales-channel'].apply(lambda x: 'Vine' if 'vine' in str(x).lower() else 'Retail')
+
+    # Count order types
     total_orders = df['amazon-order-id'].nunique()
-    vine_orders = df[df['is_vine']]['amazon-order-id'].nunique()
-    retail_orders = df[df['is_retail']]['amazon-order-id'].nunique()
-    shipped_units = df[df['is_shipped']]['quantity'].sum()
-    pending_units = df[df['is_pending']]['quantity'].sum()
-    shipped_vine_units = df[(df['is_shipped']) & (df['is_vine'])]['quantity'].sum()
-    shipped_retail_units = df[(df['is_shipped']) & (df['is_retail'])]['quantity'].sum()
-    pending_orders = df[df['is_pending']]['amazon-order-id'].nunique()
+    vine_orders = df[df['order-type'] == 'Vine']['amazon-order-id'].nunique()
+    retail_orders = df[df['order-type'] == 'Retail']['amazon-order-id'].nunique()
 
-    # Manual override
-    fba_units_sent = st.number_input("Enter total FBA Vine units sent", min_value=0, max_value=1000, value=15)
+    # Count units
+    total_units_sent = len(df)
+    shipped_df = df[df['order-status'].str.lower() == 'shipped']
+    pending_df = df[df['order-status'].str.lower() == 'pending']
 
-    # Metric display (2-column layout)
-    col1, col2 = st.columns(2)
+    shipped_units = len(shipped_df)
+    pending_units = len(pending_df)
 
-    with col1:
-        st.markdown("#### Orders")
-        st.markdown(f"- Total Orders: **{total_orders}**")
-        st.markdown(f"- Retail Orders: **{retail_orders}**")
-        st.markdown(f"- Vine Orders: **{vine_orders}**")
-        st.markdown(f"- Pending Orders: **{pending_orders}**")
+    shipped_vine_units = len(shipped_df[shipped_df['order-type'] == 'Vine'])
+    shipped_retail_units = len(shipped_df[shipped_df['order-type'] == 'Retail'])
 
-    with col2:
-        st.markdown("#### Units")
-        st.markdown(f"- FBA Vine Units Sent: **{fba_units_sent}**")
-        st.markdown(f"- Shipped Units: **{shipped_units}**")
-        st.markdown(f"- Shipped Vine Units: **{shipped_vine_units}**")
-        st.markdown(f"- Shipped Retail Units: **{shipped_retail_units}**")
-        st.markdown(f"- Pending Units: **{pending_units}**")
+    pending_orders = pending_df['amazon-order-id'].nunique()
 
+    # Display metrics
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Orders", total_orders)
+    col2.metric("Retail Orders", retail_orders)
+    col3.metric("Vine Orders", vine_orders)
+
+    col4, col5, col6 = st.columns(3)
+    col4.metric("FBA Vine Units Sent", total_units_sent)
+    col5.metric("Shipped Units", shipped_units)
+    col6.metric("Pending Units", pending_units)
+
+    col7, col8, col9 = st.columns(3)
+    col7.metric("Shipped Vine Units", shipped_vine_units)
+    col8.metric("Shipped Retail Units", shipped_retail_units)
+    col9.metric("Pending Orders", pending_orders)
+
+    # Data preview
     st.markdown("---")
-    st.markdown("#### Full Order Data")
-    st.dataframe(df[['amazon-order-id', 'purchase-date', 'order-status', 'quantity', 'product-name']], use_container_width=True)
+    st.subheader("Full Order Data")
+    st.dataframe(df)
