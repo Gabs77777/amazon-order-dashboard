@@ -12,56 +12,49 @@ if uploaded_file:
     # Normalize column names
     df.columns = df.columns.str.lower().str.strip()
 
+    # Required columns
     required = ['amazon-order-id', 'order-status', 'quantity', 'promotion-ids']
     if not all(col in df.columns for col in required):
-        st.error("Missing required columns.")
+        st.error("Missing required columns: " + ", ".join(col for col in required if col not in df.columns))
         st.stop()
 
-    # Clean up
+    # Clean and normalize data
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(1).astype(int)
     df['order-status'] = df['order-status'].astype(str).str.lower()
-    df['promotion-ids'] = df['promotion-ids'].astype(str)
+    df['promotion-ids'] = df['promotion-ids'].astype(str).fillna("")
 
-    # Create order-level vine status
-    vine_orders = df[df['promotion-ids'].str.contains('vine.enrollment', case=False, na=False)]
-    vine_order_ids = vine_orders['amazon-order-id'].unique()
-    order_vine_map = pd.DataFrame({'amazon-order-id': vine_order_ids, 'vine_order': True})
+    # Order-level Vine detection
+    df['vine_flag'] = df['promotion-ids'].str.contains('vine.enrollment', case=False)
+    order_vine_status = df.groupby('amazon-order-id')['vine_flag'].max()
+    df['vine_order'] = df['amazon-order-id'].map(order_vine_status)
 
-    # Add vine_order flag to original df
-    df = df.merge(order_vine_map, on='amazon-order-id', how='left')
-    df['vine_order'] = df['vine_order'].fillna(False)
-
-    # Manual override
+    # Sidebar overrides
     st.sidebar.header("Manual Overrides")
     vine_units_sent = st.sidebar.number_input("FBA Vine Units Sent", value=15)
     vine_units_enrolled = st.sidebar.number_input("Vine Units Enrolled", value=14)
 
-    # Group by order ID for order-level calculations
-    order_group = df.groupby('amazon-order-id').agg({
-        'order-status': 'first',
-        'vine_order': 'max'
-    }).reset_index()
-
     # Orders
-    total_orders = len(order_group)
-    vine_orders_count = order_group['vine_order'].sum()
-    retail_orders = total_orders - vine_orders_count
-    pending_orders = (order_group['order-status'] == 'pending').sum()
+    orders_df = df[['amazon-order-id', 'order-status', 'vine_order']].drop_duplicates()
+    total_orders = len(orders_df)
+    vine_orders = orders_df['vine_order'].sum()
+    retail_orders = total_orders - vine_orders
+    pending_orders = (orders_df['order-status'] == 'pending').sum()
 
     # Units
-    total_units = df['quantity'].sum()
     vine_units = df[df['vine_order']]['quantity'].sum()
     retail_units = df[~df['vine_order']]['quantity'].sum()
+    total_units = vine_units + retail_units
+
     pending_units = df[df['order-status'] == 'pending']['quantity'].sum()
     shipped_vine_units = df[(df['vine_order']) & (df['order-status'] == 'shipped')]['quantity'].sum()
     shipped_retail_units = df[(~df['vine_order']) & (df['order-status'] == 'shipped')]['quantity'].sum()
 
-    # Layout
+    # Display
     st.markdown("### Orders")
     o1, o2, o3, o4 = st.columns(4)
     o1.metric("Total Orders", total_orders)
     o2.metric("Retail Orders", int(retail_orders))
-    o3.metric("Vine Orders", int(vine_orders_count))
+    o3.metric("Vine Orders", int(vine_orders))
     o4.metric("Pending Orders", pending_orders)
 
     st.markdown("### Units")
@@ -78,4 +71,7 @@ if uploaded_file:
     u8.metric("Shipped Retail Units", shipped_retail_units)
 
     st.markdown("### Full Order Data")
-    st.dataframe(df[['amazon-order-id', 'purchase-date', 'order-status', 'quantity', 'promotion-ids', 'vine_order']], use_container_width=True)
+    st.dataframe(
+        df[['amazon-order-id', 'purchase-date', 'order-status', 'quantity', 'promotion-ids', 'vine_order']],
+        use_container_width=True
+    )
