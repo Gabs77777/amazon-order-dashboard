@@ -25,22 +25,22 @@ VINE_ORDER_IDS = {
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Normalize headers
+    # Normalize columns
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "-")
 
-    # Rename to match expected column names
+    # Standardize column names
     df = df.rename(columns={
         "amazon-order-id": "order_id",
         "order-status": "status",
         "quantity": "qty"
     })
 
-    # Convert values to string
-    df["order_id"] = df["order_id"].astype(str)
-    df["status"] = df["status"].str.lower()
+    # Clean values
+    df["order_id"] = df["order_id"].astype(str).str.strip()
+    df["status"] = df["status"].astype(str).str.lower().str.strip()
     df["qty"] = pd.to_numeric(df["qty"], errors="coerce").fillna(1)
 
-    # Classify orders
+    # Tag Vine orders
     df["is_vine"] = df["order_id"].isin(VINE_ORDER_IDS)
     df["is_shipped"] = df["status"] == "shipped"
     df["is_pending"] = df["status"] == "pending"
@@ -51,7 +51,7 @@ if uploaded_file:
     retail_orders = total_orders - vine_orders
     pending_orders = df["is_pending"].sum()
 
-    # Unit calculations
+    # Unit counts
     vine_units_ordered = df[df["is_vine"]]["qty"].sum()
     retail_units_ordered = df[~df["is_vine"]]["qty"].sum()
     shipped_vine_units = df[df["is_vine"] & df["is_shipped"]]["qty"].sum()
@@ -82,4 +82,3 @@ if uploaded_file:
 
     st.subheader("Full Order Data")
     st.dataframe(df)
-
