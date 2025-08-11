@@ -4,7 +4,7 @@ import pandas as pd
 st.set_page_config(layout="wide")
 st.title("Amazon Order Dashboard")
 
-# Sidebar: manual overrides
+# Sidebar: Manual inputs
 fba_vine_units_sent = st.sidebar.number_input("FBA Vine Units Sent", min_value=0, value=15)
 vine_units_enrolled = st.sidebar.number_input("Vine Units Enrolled", min_value=0, value=14)
 
@@ -14,42 +14,42 @@ uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Normalize column names
+    # Clean column names
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "-")
 
-    # Add quantity column if missing
+    # Ensure 'quantity' is numeric and filled
     if "quantity" not in df.columns:
         df["quantity"] = 1
     df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(1).astype(int)
 
-    # Detect vine orders
-    def is_vine(x):
-        if isinstance(x, str):
-            return "vine.enrollment" in x.lower()
+    # Classify Vine orders
+    def is_vine(promo_id):
+        if isinstance(promo_id, str):
+            return "vine.enrollment" in promo_id.lower()
         return False
 
-    df["vine_order"] = df["promotion-ids"].apply(is_vine)
+    df["vine"] = df["promotion-ids"].apply(is_vine)
 
-    # Cleanly split Vine and Retail
-    vine_df = df[df["vine_order"] == True]
-    retail_df = df[df["vine_order"] == False]
+    # Split into Vine and Retail
+    vine_orders_df = df[df["vine"] == True]
+    retail_orders_df = df[df["vine"] == False]
 
-    # Order counts
+    # Metrics
     total_orders = len(df)
-    retail_orders = len(retail_df)
-    vine_orders = len(vine_df)
+    retail_orders = len(retail_orders_df)
+    vine_orders = len(vine_orders_df)
     pending_orders = df["order-status"].str.lower().eq("pending").sum()
 
-    # Unit counts
-    vine_units_ordered = vine_df["quantity"].sum()
-    retail_units_ordered = retail_df["quantity"].sum()
+    vine_units_ordered = vine_orders_df["quantity"].sum()
+    retail_units_ordered = retail_orders_df["quantity"].sum()
     total_units_ordered = vine_units_ordered + retail_units_ordered
 
-    shipped_vine_units = vine_df[vine_df["order-status"].str.lower() == "shipped"]["quantity"].sum()
-    shipped_retail_units = retail_df[retail_df["order-status"].str.lower() == "shipped"]["quantity"].sum()
+    shipped_vine_units = vine_orders_df[vine_orders_df["order-status"].str.lower() == "shipped"]["quantity"].sum()
+    shipped_retail_units = retail_orders_df[retail_orders_df["order-status"].str.lower() == "shipped"]["quantity"].sum()
+
     pending_units = df[df["order-status"].str.lower() == "pending"]["quantity"].sum()
 
-    # Display metrics
+    # Dashboard
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Orders", total_orders)
     col2.metric("Retail Orders", retail_orders)
