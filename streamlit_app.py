@@ -30,17 +30,14 @@ if uploaded_file:
 
         df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(1).astype(int)
 
-        # Get unique orders
         unique_orders = df.drop_duplicates(subset="order_id")
         total_orders = len(unique_orders)
         vine_orders = unique_orders["is_vine"].sum()
         retail_orders = total_orders - vine_orders
         pending_orders = unique_orders[unique_orders["status"] == "pending"].shape[0]
 
-        # Vine units ordered: all vine lines summed
         vine_units_ordered = df[df["is_vine"]]["quantity"].sum()
 
-        # Retail units ordered: sum max quantity per retail order_id
         retail_order_ids = unique_orders[~unique_orders["is_vine"]]["order_id"].tolist()
         retail_units_df = df[df["order_id"].isin(retail_order_ids) & (~df["is_vine"])]
         retail_units_ordered = (
@@ -50,6 +47,8 @@ if uploaded_file:
         shipped_vine_units = df[(df["is_vine"]) & (df["status"] == "shipped")]["quantity"].sum()
         shipped_retail_units = df[(~df["is_vine"]) & (df["status"] == "shipped")]["quantity"].sum()
         pending_units = df[df["status"] == "pending"]["quantity"].sum()
+
+        remaining_vine_stock = max(vine_units_sent - shipped_vine_units, 0)
 
         # Row 1
         row1 = st.columns(4)
@@ -70,7 +69,7 @@ if uploaded_file:
         row3[0].metric("Shipped Vine Units", shipped_vine_units)
         row3[1].metric("Shipped Retail Units", shipped_retail_units)
         row3[2].metric("Pending Units", pending_units)
-        row3[3].markdown("")  # empty placeholder to align layout
+        row3[3].metric("Remaining Vine Units in Stock", remaining_vine_stock)
 
         st.markdown("### Full Order Data")
         st.dataframe(df)
