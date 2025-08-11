@@ -8,19 +8,27 @@ uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
-
-    # Normalize columns
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "-")
 
-    # Force quantity to integer
-    df['quantity'] = pd.to_numeric(df.get('quantity', 0), errors='coerce').fillna(0).astype(int)
+    # Normalize quantity
+    if 'quantity' in df.columns:
+        df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0).astype(int)
+    else:
+        df['quantity'] = 0
 
-    # Use promotion-ids column to detect Vine
+    # Detect Vine orders
     df['vine'] = df.get('promotion-ids', '').astype(str).str.contains('vine', case=False, na=False)
 
-    # Normalize status fields
-    df['status'] = df.get('status', '').astype(str).str.lower()
-    df['order-status'] = df.get('order-status', '').astype(str).str.lower()
+    # Normalize 'status' and 'order-status'
+    if 'status' in df.columns:
+        df['status'] = df['status'].astype(str).str.lower()
+    else:
+        df['status'] = ''
+
+    if 'order-status' in df.columns:
+        df['order-status'] = df['order-status'].astype(str).str.lower()
+    else:
+        df['order-status'] = ''
 
     # Metrics
     total_orders = len(df)
@@ -52,11 +60,12 @@ if uploaded_file:
     with col4:
         st.metric("Pending Orders", pending_orders)
 
-    # Choose only these columns for display
+    # Choose specific columns to display
     display_columns = [
         'amazon-order-id', 'purchase-date', 'order-status', 'status',
         'quantity', 'promotion-ids', 'vine'
     ]
+    filtered_columns = [col for col in display_columns if col in df.columns]
 
     st.markdown("### Full Order Data")
-    st.dataframe(df[display_columns])
+    st.dataframe(df[filtered_columns])
