@@ -1,76 +1,84 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(layout="wide")
+st.set_page_config(page_title="Amazon Order Dashboard", layout="wide")
 st.title("Amazon Order Dashboard")
 
-# Inputs
-fba_vine_units_sent = st.number_input("FBA Vine Units Sent", value=15)
-vine_units_enrolled = st.number_input("Vine Units Enrolled", value=14)
-uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type="xlsx")
+# Input fields
+fba_vine_units_sent = st.number_input("FBA Vine Units Sent", min_value=0, step=1, value=0)
+vine_units_enrolled = st.number_input("Vine Units Enrolled", min_value=0, step=1, value=0)
 
-# Hardcoded Vine order IDs
-VINE_ORDER_IDS = {
-    "113-3697505-6920636",
-    "113-1335019-9650257",
-    "113-5865865-6980823",
-    "113-3937476-7462451",
-    "113-8219665-0103427",
-    "113-5240604-4890656",
-    "113-7900491-4126816",
-    "113-2237695-8090258"
-}
+# Upload file
+uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
+
+# Replace this list with your actual Vine order IDs
+VINE_ORDER_IDS = [
+    "113-2822895-8082085",
+    "113-7385029-4926631",
+    "113-9310765-6389363",
+    "113-3310595-9052851",
+]
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Normalize columns
-    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "-")
+    # Clean column names
+    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_").str.replace("-", "_")
 
-    # Check for correct column
-    if "amazon-order-id" not in df.columns:
-        st.error("Missing 'amazon-order-id' column in uploaded file.")
+    # Standard column mapping
+    df.rename(columns={
+        "amazon_order_id": "order_id",
+        "order_status": "status",
+        "quantity": "quantity",
+        "product_name": "product_name"
+    }, inplace=True)
+
+    # Ensure required columns
+    required_columns = {"order_id", "status", "quantity"}
+    if not required_columns.issubset(df.columns):
+        st.error("Missing required columns. Please check your spreadsheet.")
     else:
-        df["amazon-order-id"] = df["amazon-order-id"].astype(str).str.strip()
+        # Normalize text
+        df["order_id"] = df["order_id"].astype(str).str.strip()
         df["status"] = df["status"].astype(str).str.strip().str.lower()
-        df["qty"] = pd.to_numeric(df.get("quantity", 1), errors="coerce").fillna(1).astype(int)
+        df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(0).astype(int)
 
-        df["is_vine"] = df["amazon-order-id"].isin(VINE_ORDER_IDS)
-        df["is_shipped"] = df["status"] == "shipped"
-        df["is_pending"] = df["status"] == "pending"
+        # Add Vine flag
+        df["is_vine"] = df["order_id"].isin(VINE_ORDER_IDS)
 
+        # Summary stats
         total_orders = len(df)
-        vine_orders = df["is_vine"].sum()
-        retail_orders = total_orders - vine_orders
-        pending_orders = df["is_pending"].sum()
+        vine_orders = df[df["is_vine"]]
+        retail_orders = df[~df["is_vine"]]
 
-        vine_units_ordered = df[df["is_vine"]]["qty"].sum()
-        retail_units_ordered = df[~df["is_vine"]]["qty"].sum()
-        shipped_vine_units = df[df["is_vine"] & df["is_shipped"]]["qty"].sum()
-        shipped_retail_units = df[~df["is_vine"] & df["is_shipped"]]["qty"].sum()
-        pending_units = df[df["is_pending"]]["qty"].sum()
-        total_units = df["qty"].sum()
+        shipped_vine_units = vine_orders[vine_orders["status"] == "shipped"]["quantity"].sum()
+        shipped_retail_units = retail_orders[retail_orders["status"] == "shipped"]["quantity"].sum()
+        vine_units_ordered = vine_orders["quantity"].sum()
+        retail_units_ordered = retail_orders["quantity"].sum()
 
-        # Display
+        pending_orders = df[df["status"] != "shipped"]
+        pending_units = pending_orders["quantity"].sum()
+
+        total_units_ordered = df["quantity"].sum()
+
+        # Metrics
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Total Orders", total_orders)
-        col2.metric("Retail Orders", retail_orders)
-        col3.metric("Vine Orders", vine_orders)
-        col4.metric("Pending Orders", pending_orders)
+        col2.metric("Retail Orders", len(retail_orders))
+        col3.metric("Vine Orders", len(vine_orders))
+        col4.metric("Pending Orders", len(pending_orders))
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("FBA Vine Units Sent", fba_vine_units_sent)
-        col2.metric("Vine Units Enrolled", vine_units_enrolled)
-        col3.metric("Vine Units Ordered", int(vine_units_ordered))
-        col4.metric("Retail Units Ordered", int(retail_units_ordered))
+        col5, col6, col7, col8 = st.columns(4)
+        col5.metric("FBA Vine Units Sent", fba_vine_units_sent)
+        col6.metric("Vine Units Enrolled", vine_units_enrolled)
+        col7.metric("Vine Units Ordered", vine_units_ordered)
+        col8.metric("Retail Units Ordered", retail_units_ordered)
 
-        col1, col2 = st.columns(2)
-        col1.metric("Shipped Vine Units", int(shipped_vine_units))
-        col2.metric("Shipped Retail Units", int(shipped_retail_units))
-
-        col1, col2 = st.columns(2)
-        col1.metric("Pending Units", int(pending_units))
-        col2.metric("Total Units Ordered", int(total_units))
+        col9, col10, col11, col12 = st.columns(4)
+        col9.metric("Shipped Vine Units", shipped_vine_units)
+        col10.metric("Shipped Retail Units", shipped_retail_units)
+        col11.metric("Pending Units", pending_units)
+        col12.metric("Total Units Ordered", total_units_ordered)
 
         st.subheader("Full Order Data")
         st.dataframe(df)
