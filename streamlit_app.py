@@ -4,13 +4,12 @@ import pandas as pd
 st.set_page_config(layout="wide")
 st.title("Amazon Order Dashboard")
 
-# User input
+# Inputs
 fba_vine_units_sent = st.number_input("FBA Vine Units Sent", value=15)
 vine_units_enrolled = st.number_input("Vine Units Enrolled", value=14)
-
 uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type="xlsx")
 
-# Hardcoded Vine Order IDs
+# Correct list of known Vine Order IDs (replace with real ones if needed)
 VINE_ORDER_IDS = {
     "113-3697505-6920636",
     "113-1335019-9650257",
@@ -25,23 +24,23 @@ VINE_ORDER_IDS = {
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Normalize columns
+    # Normalize column names
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "-")
 
-    # Standardize column names
+    # Rename to standard fields
     df = df.rename(columns={
-        "amazon-order-id": "order_id",
-        "order-status": "status",
+        "order-id": "order_id",
+        "status": "status",
         "quantity": "qty"
     })
 
-    # Clean values
+    # Normalize values
     df["order_id"] = df["order_id"].astype(str).str.strip()
-    df["status"] = df["status"].astype(str).str.lower().str.strip()
-    df["qty"] = pd.to_numeric(df["qty"], errors="coerce").fillna(1)
+    df["status"] = df["status"].astype(str).str.strip().str.lower()
+    df["qty"] = pd.to_numeric(df["qty"], errors="coerce").fillna(1).astype(int)
 
     # Tag Vine orders
-    df["is_vine"] = df["order_id"].isin(VINE_ORDER_IDS)
+    df["is_vine"] = df["order_id"].isin([oid.strip() for oid in VINE_ORDER_IDS])
     df["is_shipped"] = df["status"] == "shipped"
     df["is_pending"] = df["status"] == "pending"
 
