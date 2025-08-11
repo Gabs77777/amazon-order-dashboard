@@ -9,26 +9,26 @@ st.sidebar.markdown("### Manual Overrides")
 vine_units_sent = st.sidebar.number_input("FBA Vine Units Sent", min_value=0, value=15)
 vine_units_enrolled = st.sidebar.number_input("Vine Units Enrolled", min_value=0, value=14)
 
-# Upload file
+# File uploader
 uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Normalize columns
+    # Normalize column names
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
-    # Ensure columns are string type for processing
-    df["promotion-ids"] = df["promotion-ids"].astype(str).fillna("").str.lower()
-    df["order-status"] = df["order-status"].astype(str).str.lower()
+    # Clean column types
     df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(1).astype(int)
+    df["order-status"] = df["order-status"].astype(str).str.lower()
+    
+    # Detect Vine correctly — ignore 'nan' strings and NaNs
+    df["promotion-ids"] = df["promotion-ids"].astype(str)
+    df["vine_order"] = df["promotion-ids"].apply(lambda x: "vine.enrollment" in x.lower() if isinstance(x, str) and x.lower() != "nan" else False)
 
-    # Classify Vine orders: only those with valid vine.enrollment tag
-    df["vine_order"] = df["promotion-ids"].str.contains("vine.enrollment", na=False)
-
-    # Subsets
-    vine_df = df[df["vine_order"] == True]
-    retail_df = df[df["vine_order"] == False]
+    # Data subsets
+    vine_df = df[df["vine_order"]]
+    retail_df = df[~df["vine_order"]]
 
     # Orders
     total_orders = len(df)
@@ -38,13 +38,12 @@ if uploaded_file:
 
     # Units
     vine_units_ordered = vine_df["quantity"].sum()
-    shipped_vine_units = vine_df[vine_df["order-status"] == "shipped"]["quantity"].sum()
-
     retail_units_ordered = retail_df["quantity"].sum()
-    shipped_retail_units = retail_df[retail_df["order-status"] == "shipped"]["quantity"].sum()
-
     total_units = vine_units_ordered + retail_units_ordered
     pending_units = df[df["order-status"] == "pending"]["quantity"].sum()
+
+    shipped_vine_units = vine_df[vine_df["order-status"] == "shipped"]["quantity"].sum()
+    shipped_retail_units = retail_df[retail_df["order-status"] == "shipped"]["quantity"].sum()
 
     # Layout
     st.markdown("### Orders")
