@@ -4,6 +4,7 @@ import pandas as pd
 st.set_page_config(page_title="Amazon Order Dashboard", layout="wide")
 st.title("Amazon Order Dashboard")
 
+# Inputs
 fba_vine_units_sent = st.number_input("FBA Vine Units Sent", min_value=0, value=0)
 vine_units_enrolled = st.number_input("Vine Units Enrolled", min_value=0, value=0)
 
@@ -14,26 +15,25 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
         df.columns = df.columns.str.strip().str.lower()
 
-        # Map flexible column names
+        # Column name mapping
         column_map = {
-            "order_id": ["order id", "amazon-order-id", "order-id"],
-            "status": ["status", "order status"],
+            "order_id": ["order id", "amazon-order-id", "order-id", "order_id"],
+            "status": ["order status", "order-status", "status", "fulfillment status"],
         }
 
-        for target_col, possible_names in column_map.items():
-            found = False
-            for name in possible_names:
-                if name in df.columns:
-                    df.rename(columns={name: target_col}, inplace=True)
-                    found = True
-                    break
-            if not found:
-                st.error(f"Missing required column: {target_col}")
+        for required, options in column_map.items():
+            matched = next((col for col in options if col in df.columns), None)
+            if matched:
+                df.rename(columns={matched: required}, inplace=True)
+            else:
+                st.error(f"Missing required column: {required}")
                 st.stop()
 
+        # Normalize values
         df["order_id"] = df["order_id"].astype(str).str.strip()
         df["status"] = df["status"].astype(str).str.strip().str.lower()
 
+        # Define Vine order IDs
         VINE_ORDER_IDS = {
             "113-4539275-1458601",
             "113-5709703-5945415",
@@ -43,11 +43,10 @@ if uploaded_file:
         df["is_vine"] = df["order_id"].isin(VINE_ORDER_IDS)
         df["is_pending"] = df["status"].str.contains("pending", na=False)
 
+        # Calculations
         total_orders = len(df)
         vine_orders = df["is_vine"].sum()
         retail_orders = total_orders - vine_orders
-        vine_units_ordered = vine_orders
-        retail_units_ordered = retail_orders
 
         shipped_df = df[~df["is_pending"]]
         shipped_vine_units = shipped_df["is_vine"].sum()
@@ -55,9 +54,11 @@ if uploaded_file:
 
         pending_orders = df["is_pending"].sum()
         pending_units = pending_orders
+        vine_units_ordered = vine_orders
+        retail_units_ordered = retail_orders
         total_units_ordered = total_orders
 
-        # Metrics display
+        # Display metrics
         st.markdown("###")
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Total Orders", total_orders)
