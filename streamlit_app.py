@@ -14,10 +14,11 @@ if uploaded_file:
 
     df['order-id'] = df['amazon-order-id'].astype(str)
     df['item-status'] = df['item-status'].fillna('')
-    if 'order-type' in df.columns:
+  if 'order-type' in df.columns:
     df['order-type'] = df['order-type'].fillna('')
-    else:
+else:
     df['order-type'] = ''
+
 
     df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0)
 
