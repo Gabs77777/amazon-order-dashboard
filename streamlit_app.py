@@ -2,44 +2,39 @@ import streamlit as st
 import pandas as pd
 
 st.set_page_config(page_title="Amazon Order Dashboard", layout="wide")
-st.title("Amazon Order Dashboard")
 
-uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type="xlsx")
+st.markdown("<h1 style='color:white; font-size:36px;'>Amazon Order Dashboard</h1>", unsafe_allow_html=True)
+
+uploaded_file = st.file_uploader("Upload your Amazon .xlsx file", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Identify Vine orders
-    df["vine"] = df["promotion-ids"].astype(str).str.contains("vine", case=False, na=False)
+    # Normalize column names
+    df.columns = [col.strip().lower().replace(" ", "-") for col in df.columns]
 
-    # Rename columns to display-friendly names
-    df = df.rename(columns={
-        "item-status": "status",
-        "item-price": "price",
-        "item-promotion-discount": "discount",
-        "ship-city": "city",
-        "ship-state": "state",
-        "promotion-ids": "promotion"
-    })
+    # Detect vine orders
+    df["is_vine"] = df["promotion-ids"].astype(str).str.contains("vine", case=False)
 
-    # Calculate metrics
+    # Clean item-status to lower for comparison
+    df["item-status"] = df["item-status"].str.strip().str.lower()
+
+    # Metrics
     total_orders = len(df)
-    vine_orders = df["vine"].sum()
+    vine_orders = df["is_vine"].sum()
     retail_orders = total_orders - vine_orders
 
-    shipped_df = df[df["status"] == "Shipped"]
-    pending_df = df[df["status"] != "Shipped"]
+    df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(0).astype(int)
 
-    shipped_units = shipped_df["quantity"].sum()
-    pending_units = pending_df["quantity"].sum()
+    fba_vine_units_sent = df[df["is_vine"]]["quantity"].sum()
+    shipped_units = df[df["item-status"] == "shipped"]["quantity"].sum()
+    shipped_vine_units = df[(df["item-status"] == "shipped") & (df["is_vine"])]["quantity"].sum()
+    shipped_retail_units = shipped_units - shipped_vine_units
 
-    shipped_vine_units = shipped_df[shipped_df["vine"] == True]["quantity"].sum()
-    shipped_retail_units = shipped_df[shipped_df["vine"] == False]["quantity"].sum()
+    pending_orders = len(df[df["item-status"] != "shipped"])
+    pending_units = df[df["item-status"] != "shipped"]["quantity"].sum()
 
-    pending_orders = pending_df["amazon-order-id"].nunique()
-    fba_vine_units_sent = df[df["vine"] == True]["quantity"].sum()
-
-    # Show KPIs
+    # Display metrics
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Orders", total_orders)
@@ -54,11 +49,24 @@ if uploaded_file:
         st.metric("Shipped Retail Units", shipped_retail_units)
         st.metric("Pending Orders", pending_orders)
 
-    # Display cleaned table with selected columns
+    # Clean table columns
+    show_columns = [
+        "amazon-order-id", "purchase-date", "order-status", "ship-service-level",
+        "item-status", "quantity", "item-price", "item-promotion-discount",
+        "ship-city", "ship-state", "promotion-ids", "is_vine"
+    ]
+    renamed_columns = {
+        "item-price": "price",
+        "item-promotion-discount": "discount",
+        "ship-city": "city",
+        "ship-state": "state",
+        "promotion-ids": "promotion",
+        "is_vine": "vine",
+        "item-status": "status"
+    }
+
+    clean_df = df[show_columns].rename(columns=renamed_columns)
+
     st.markdown("---")
     st.subheader("Full Order Data")
-    selected_columns = [
-        "amazon-order-id", "purchase-date", "order-status", "ship-service-level",
-        "status", "quantity", "price", "discount", "city", "state", "promotion", "vine"
-    ]
-    st.dataframe(df[selected_columns])
+    st.dataframe(clean_df, use_container_width=True)
